@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TypePrint — Your Typing Fingerprint</title>
+<meta name="description" content="Discover your unique typing fingerprint. An interactive typing analyzer that visualizes your keystroke patterns, rhythm, and speed.">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0f;--surface:#13131a;--surface2:#1a1a24;--border:#2a2a3a;
+  --text:#e8e8f0;--text2:#8888a0;--accent:#6c5ce7;--accent2:#a855f7;
+  --green:#22c55e;--red:#ef4444;--orange:#f59e0b;--cyan:#06b6d4;
+  --grad:linear-gradient(135deg,#6c5ce7,#a855f7,#06b6d4);
+}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+a{color:var(--accent2);text-decoration:none}
+
+/* Header */
+.header{display:flex;align-items:center;justify-content:space-between;padding:1.5rem 2rem;border-bottom:1px solid var(--border)}
+.logo{font-size:1.5rem;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent;display:flex;align-items:center;gap:.5rem}
+.logo span{font-size:1.8rem}
+.header-right{display:flex;gap:1rem;align-items:center}
+.badge{background:var(--surface2);color:var(--text2);padding:.25rem .75rem;border-radius:999px;font-size:.75rem;border:1px solid var(--border)}
+
+/* Main */
+.container{max-width:1100px;margin:0 auto;padding:2rem}
+
+/* Hero */
+.hero{text-align:center;margin-bottom:2.5rem}
+.hero h1{font-size:2.5rem;font-weight:800;margin-bottom:.5rem;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{color:var(--text2);font-size:1.1rem;max-width:500px;margin:0 auto}
+
+/* Stats bar */
+.stats-bar{display:flex;justify-content:center;gap:2rem;margin-bottom:2rem;flex-wrap:wrap}
+.stat{text-align:center;background:var(--surface);padding:1rem 1.5rem;border-radius:12px;border:1px solid var(--border);min-width:120px}
+.stat .value{font-size:2rem;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.stat .label{font-size:.75rem;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-top:.2rem}
+
+/* Typing area */
+.typing-section{margin-bottom:2rem}
+.typing-container{background:var(--surface);border:2px solid var(--border);border-radius:16px;padding:2rem;position:relative;cursor:text;min-height:160px;transition:border-color .3s}
+.typing-container.active{border-color:var(--accent)}
+.typing-container.done{border-color:var(--green)}
+.typing-prompt{display:none;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:var(--text2);font-size:1.1rem;pointer-events:none}
+.typing-container:not(.active):not(.done) .typing-prompt{display:block}
+.text-display{font-size:1.2rem;line-height:2;font-family:'Courier New',monospace;letter-spacing:.03em;white-space:pre-wrap;word-break:break-word}
+.text-display .char{color:var(--text2);transition:color .1s}
+.text-display .char.correct{color:var(--green)}
+.text-display .char.incorrect{color:var(--red);text-decoration:underline}
+.text-display .char.current{background:rgba(108,92,231,.3);border-radius:2px}
+.hidden-input{position:absolute;opacity:0;width:0;height:0}
+
+/* Progress bar */
+.progress-bar{height:4px;background:var(--surface2);border-radius:99px;margin-top:1rem;overflow:hidden}
+.progress-fill{height:100%;background:var(--grad);border-radius:99px;transition:width .2s;width:0}
+
+/* Controls */
+.controls{display:flex;justify-content:center;gap:1rem;margin-bottom:2rem}
+.btn{padding:.6rem 1.5rem;border-radius:10px;border:none;cursor:pointer;font-size:.9rem;font-weight:600;transition:all .2s}
+.btn-primary{background:var(--grad);color:#fff}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px)}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--border)}
+
+/* Results grid */
+.results{display:none;animation:fadeIn .6s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+.results-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:2rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:1.5rem;overflow:hidden}
+.card h3{font-size:1rem;font-weight:700;margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+.card h3 .icon{width:24px;height:24px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.8rem}
+.card-keyboard .icon{background:rgba(108,92,231,.2);color:var(--accent)}
+.card-rhythm .icon{background:rgba(6,182,212,.2);color:var(--cyan)}
+.card-bigram .icon{background:rgba(168,85,247,.2);color:var(--accent2)}
+.card-finger .icon{background:rgba(34,197,94,.2);color:var(--green)}
+
+/* Keyboard heatmap */
+.keyboard{display:flex;flex-direction:column;gap:6px;align-items:center}
+.kb-row{display:flex;gap:4px}
+.key{min-width:36px;height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:600;border:1px solid var(--border);background:var(--surface2);color:var(--text2);position:relative;transition:all .3s}
+.key .count{position:absolute;bottom:1px;right:3px;font-size:.5rem;opacity:.6}
+.key-space{min-width:200px}
+.key-wide{min-width:52px}
+.key-wider{min-width:68px}
+
+/* Canvas containers */
+.canvas-container{width:100%;position:relative}
+.canvas-container canvas{width:100%;border-radius:8px}
+
+/* Bigram list */
+.bigram-list{display:flex;flex-direction:column;gap:6px}
+.bigram-item{display:flex;align-items:center;gap:.75rem;padding:.4rem .6rem;border-radius:8px;background:var(--surface2);font-size:.85rem}
+.bigram-keys{font-family:'Courier New',monospace;font-weight:700;min-width:50px;color:var(--accent2)}
+.bigram-bar{flex:1;height:6px;background:var(--border);border-radius:99px;overflow:hidden}
+.bigram-bar-fill{height:100%;border-radius:99px;transition:width .5s}
+.bigram-ms{font-size:.75rem;color:var(--text2);min-width:45px;text-align:right}
+.bigram-section-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text2);margin-top:.5rem;margin-bottom:.2rem}
+
+/* Finger chart */
+.finger-chart{display:flex;align-items:flex-end;justify-content:center;gap:6px;height:150px;padding-top:1rem}
+.finger-bar-wrap{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+.finger-bar{width:100%;border-radius:6px 6px 0 0;transition:height .5s;min-height:4px}
+.finger-label{font-size:.6rem;color:var(--text2);text-align:center;line-height:1.2}
+.finger-pct{font-size:.7rem;font-weight:700}
+
+/* TypePrint card */
+.typeprint-card{grid-column:1/-1;background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden}
+.typeprint-inner{padding:2rem;display:grid;grid-template-columns:1fr 1fr 1fr;gap:1.5rem;align-items:center}
+.typeprint-header{grid-column:1/-1;text-align:center;margin-bottom:.5rem}
+.typeprint-header h2{font-size:1.5rem;font-weight:800;background:var(--grad);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.typeprint-header p{color:var(--text2);font-size:.85rem}
+.typeprint-mini{text-align:center}
+.typeprint-mini canvas{border-radius:8px;max-width:100%}
+.typeprint-mini .mini-label{font-size:.7rem;color:var(--text2);margin-top:.4rem;text-transform:uppercase;letter-spacing:.05em}
+.card-actions{grid-column:1/-1;display:flex;justify-content:center;gap:1rem;margin-top:.5rem}
+
+/* Footer */
+.footer{text-align:center;padding:2rem;color:var(--text2);font-size:.8rem;border-top:1px solid var(--border);margin-top:2rem}
+.footer a{color:var(--accent2)}
+
+/* Responsive */
+@media(max-width:768px){
+  .results-grid{grid-template-columns:1fr}
+  .typeprint-inner{grid-template-columns:1fr}
+  .stats-bar{gap:1rem}
+  .stat{min-width:90px;padding:.75rem 1rem}
+  .hero h1{font-size:1.8rem}
+  .container{padding:1rem}
+  .key{min-width:28px;height:28px;font-size:.6rem}
+  .key-space{min-width:140px}
+  .key-wide{min-width:40px}
+  .key-wider{min-width:52px}
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="logo"><span>⌨</span> TypePrint</div>
+  <div class="header-right">
+    <span class="badge">v1.0</span>
+    <a href="https://github.com/middesurya/daily-webapp-2026-03-28-typeprint" class="badge" style="border-color:var(--accent)">GitHub</a>
+  </div>
+</header>
+
+<main class="container">
+  <section class="hero">
+    <h1>Discover Your Typing Fingerprint</h1>
+    <p>Type a passage and reveal your unique keystroke DNA — rhythm, speed patterns, and finger habits visualized beautifully.</p>
+  </section>
+
+  <section class="stats-bar">
+    <div class="stat"><div class="value" id="wpm-display">0</div><div class="label">WPM</div></div>
+    <div class="stat"><div class="value" id="accuracy-display">100%</div><div class="label">Accuracy</div></div>
+    <div class="stat"><div class="value" id="time-display">0s</div><div class="label">Time</div></div>
+    <div class="stat"><div class="value" id="chars-display">0</div><div class="label">Characters</div></div>
+  </section>
+
+  <section class="typing-section">
+    <div class="typing-container" id="typing-container">
+      <div class="typing-prompt">Click here and start typing...</div>
+      <div class="text-display" id="text-display"></div>
+      <input type="text" class="hidden-input" id="hidden-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+  </section>
+
+  <div class="controls">
+    <button class="btn btn-primary" id="restart-btn">New Passage</button>
+    <button class="btn btn-secondary" id="theme-btn">Toggle Theme</button>
+  </div>
+
+  <section class="results" id="results">
+    <div class="results-grid">
+      <div class="card card-keyboard">
+        <h3><span class="icon">🔥</span> Keyboard Heatmap</h3>
+        <div class="keyboard" id="keyboard-heatmap"></div>
+      </div>
+
+      <div class="card card-rhythm">
+        <h3><span class="icon">〰</span> Rhythm Waveform</h3>
+        <div class="canvas-container"><canvas id="rhythm-canvas" height="180"></canvas></div>
+      </div>
+
+      <div class="card card-bigram">
+        <h3><span class="icon">⚡</span> Key Pair Speeds</h3>
+        <div id="bigram-container" class="bigram-list"></div>
+      </div>
+
+      <div class="card card-finger">
+        <h3><span class="icon">🖐</span> Finger Distribution</h3>
+        <div class="finger-chart" id="finger-chart"></div>
+      </div>
+
+      <div class="typeprint-card">
+        <div class="typeprint-inner" id="typeprint-inner">
+          <div class="typeprint-header">
+            <h2>Your TypePrint</h2>
+            <p id="typeprint-summary"></p>
+          </div>
+          <div class="typeprint-mini">
+            <canvas id="mini-heatmap" width="280" height="100"></canvas>
+            <div class="mini-label">Heat Pattern</div>
+          </div>
+          <div class="typeprint-mini">
+            <canvas id="mini-rhythm" width="280" height="100"></canvas>
+            <div class="mini-label">Rhythm DNA</div>
+          </div>
+          <div class="typeprint-mini">
+            <canvas id="mini-fingerprint" width="280" height="100"></canvas>
+            <div class="mini-label">TypePrint ID</div>
+          </div>
+          <div class="card-actions">
+            <button class="btn btn-primary" id="download-btn">Download TypePrint</button>
+            <button class="btn btn-secondary" id="retry-btn">Try Again</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  Built autonomously by <a href="https://github.com/middesurya">Surya Midde</a> with Claude Code &middot;
+  <a href="https://github.com/middesurya/daily-webapp-2026-03-28-typeprint">Source</a> &middot;
+  MIT License
+</footer>
+
+<script>
+// ===== PASSAGES =====
+const PASSAGES = [
+  "The best way to predict the future is to invent it. Every great developer you know got there by solving problems they were unqualified to solve until they actually did it. The only way to do great work is to love what you do.",
+  "In the beginning the Universe was created. This has made a lot of people very angry and been widely regarded as a bad move. The ships hung in the sky in much the same way that bricks do not.",
+  "Code is like humor. When you have to explain it, it is bad. First, solve the problem. Then, write the code. Experience is the name everyone gives to their mistakes. The function of good software is to make the complex appear simple.",
+  "Any sufficiently advanced technology is indistinguishable from magic. We can only see a short distance ahead, but we can see plenty there that needs to be done. The question of whether a computer can think is no more interesting than whether a submarine can swim.",
+  "To iterate is human, to recurse divine. Programs must be written for people to read, and only incidentally for machines to execute. Simplicity is prerequisite for reliability. Talk is cheap, show me the code."
+];
+
+// ===== KEYBOARD LAYOUT =====
+const KB_ROWS = [
+  [{k:'`',w:1},{k:'1',w:1},{k:'2',w:1},{k:'3',w:1},{k:'4',w:1},{k:'5',w:1},{k:'6',w:1},{k:'7',w:1},{k:'8',w:1},{k:'9',w:1},{k:'0',w:1},{k:'-',w:1},{k:'=',w:1}],
+  [{k:'q',w:1},{k:'w',w:1},{k:'e',w:1},{k:'r',w:1},{k:'t',w:1},{k:'y',w:1},{k:'u',w:1},{k:'i',w:1},{k:'o',w:1},{k:'p',w:1},{k:'[',w:1},{k:']',w:1}],
+  [{k:'a',w:1},{k:'s',w:1},{k:'d',w:1},{k:'f',w:1},{k:'g',w:1},{k:'h',w:1},{k:'j',w:1},{k:'k',w:1},{k:'l',w:1},{k:';',w:1},{k:"'",w:1}],
+  [{k:'z',w:1},{k:'x',w:1},{k:'c',w:1},{k:'v',w:1},{k:'b',w:1},{k:'n',w:1},{k:'m',w:1},{k:',',w:1},{k:'.',w:1}],
+  [{k:' ',w:5,label:'Space'}]
+];
+
+// Finger mapping (QWERTY standard)
+const FINGER_MAP = {
+  '`':0,'1':0,'q':0,'a':0,'z':0,
+  '2':1,'w':1,'s':1,'x':1,
+  '3':2,'e':2,'d':2,'c':2,
+  '4':3,'r':3,'f':3,'v':3,'5':3,'t':3,'g':3,'b':3,
+  '6':6,'y':6,'h':6,'n':6,'7':6,'u':6,'j':6,'m':6,
+  '8':7,'i':7,'k':7,',':7,
+  '9':8,'o':8,'l':8,'.':8,
+  '0':9,'p':9,';':9,"'":9,'-':9,'[':9,']':9,'=':9,
+  ' ':4 // thumb
+};
+
+const FINGER_NAMES = ['L Pinky','L Ring','L Mid','L Index','L Thumb','R Thumb','R Index','R Mid','R Ring','R Pinky'];
+const FINGER_COLORS = ['#ef4444','#f59e0b','#22c55e','#6c5ce7','#8888a0','#8888a0','#a855f7','#06b6d4','#f59e0b','#ef4444'];
+
+// ===== STATE =====
+let currentText = '';
+let charIndex = 0;
+let startTime = null;
+let timerInterval = null;
+let keystrokes = []; // {key, time, correct}
+let isFinished = false;
+let isStarted = false;
+let keyCounts = {};
+let bigramTimes = {}; // "ab" -> [ms, ms, ...]
+let lastKeyTime = null;
+let lastKeyChar = null;
+let intervals = []; // ms between keystrokes
+let correctCount = 0;
+let incorrectCount = 0;
+
+// ===== INIT =====
+function init() {
+  currentText = PASSAGES[Math.floor(Math.random() * PASSAGES.length)];
+  charIndex = 0;
+  startTime = null;
+  keystrokes = [];
+  isFinished = false;
+  isStarted = false;
+  keyCounts = {};
+  bigramTimes = {};
+  lastKeyTime = null;
+  lastKeyChar = null;
+  intervals = [];
+  correctCount = 0;
+  incorrectCount = 0;
+
+  if (timerInterval) clearInterval(timerInterval);
+
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('wpm-display').textContent = '0';
+  document.getElementById('accuracy-display').textContent = '100%';
+  document.getElementById('time-display').textContent = '0s';
+  document.getElementById('chars-display').textContent = '0';
+  document.getElementById('progress-fill').style.width = '0%';
+
+  const container = document.getElementById('typing-container');
+  container.classList.remove('active', 'done');
+
+  renderText();
+}
+
+function renderText() {
+  const display = document.getElementById('text-display');
+  display.innerHTML = currentText.split('').map((ch, i) => {
+    let cls = 'char';
+    if (i < charIndex) {
+      cls += keystrokes[i] && keystrokes[i].correct ? ' correct' : ' incorrect';
+    } else if (i === charIndex) {
+      cls += ' current';
+    }
+    return `<span class="${cls}">${ch === ' ' ? '&nbsp;' : escapeHtml(ch)}</span>`;
+  }).join('');
+}
+
+function escapeHtml(s) {
+  const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#039;"};
+  return s.replace(/[&<>"']/g, c => map[c]);
+}
+
+// ===== TYPING HANDLER =====
+document.getElementById('typing-container').addEventListener('click', () => {
+  document.getElementById('hidden-input').focus();
+});
+
+document.getElementById('hidden-input').addEventListener('focus', () => {
+  if (!isFinished) document.getElementById('typing-container').classList.add('active');
+});
+
+document.getElementById('hidden-input').addEventListener('blur', () => {
+  document.getElementById('typing-container').classList.remove('active');
+});
+
+document.getElementById('hidden-input').addEventListener('keydown', (e) => {
+  if (isFinished) return;
+  if (e.key === 'Tab' || e.key === 'Escape') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+  // Handle backspace
+  if (e.key === 'Backspace') {
+    if (charIndex > 0) {
+      charIndex--;
+      if (keystrokes[charIndex] && keystrokes[charIndex].correct) correctCount--;
+      else incorrectCount--;
+      keystrokes.pop();
+    }
+    renderText();
+    updateStats();
+    e.preventDefault();
+    return;
+  }
+
+  // Only handle single characters
+  if (e.key.length !== 1) return;
+  e.preventDefault();
+
+  const now = performance.now();
+
+  // Start timer on first keystroke
+  if (!isStarted) {
+    isStarted = true;
+    startTime = now;
+    timerInterval = setInterval(updateTimer, 100);
+  }
+
+  const expected = currentText[charIndex];
+  const typed = e.key;
+  const isCorrect = typed === expected;
+
+  if (isCorrect) correctCount++;
+  else incorrectCount++;
+
+  // Record keystroke
+  keystrokes.push({ key: typed, time: now, correct: isCorrect });
+
+  // Key frequency
+  const lk = typed.toLowerCase();
+  keyCounts[lk] = (keyCounts[lk] || 0) + 1;
+
+  // Interval between keystrokes
+  if (lastKeyTime !== null) {
+    const interval = now - lastKeyTime;
+    intervals.push(interval);
+
+    // Bigram timing
+    if (lastKeyChar !== null) {
+      const bigram = lastKeyChar.toLowerCase() + lk;
+      if (!bigramTimes[bigram]) bigramTimes[bigram] = [];
+      bigramTimes[bigram].push(interval);
+    }
+  }
+
+  lastKeyTime = now;
+  lastKeyChar = typed;
+
+  charIndex++;
+
+  // Update progress
+  const pct = (charIndex / currentText.length) * 100;
+  document.getElementById('progress-fill').style.width = pct + '%';
+
+  renderText();
+  updateStats();
+
+  // Check completion
+  if (charIndex >= currentText.length) {
+    finishTest();
+  }
+});
+
+function updateStats() {
+  const total = correctCount + incorrectCount;
+  const acc = total > 0 ? Math.round((correctCount / total) * 100) : 100;
+  document.getElementById('accuracy-display').textContent = acc + '%';
+  document.getElementById('chars-display').textContent = charIndex;
+
+  if (startTime) {
+    const elapsed = (performance.now() - startTime) / 1000;
+    const minutes = elapsed / 60;
+    const words = correctCount / 5;
+    const wpm = minutes > 0 ? Math.round(words / minutes) : 0;
+    document.getElementById('wpm-display').textContent = wpm;
+  }
+}
+
+function updateTimer() {
+  if (!startTime) return;
+  const elapsed = Math.round((performance.now() - startTime) / 1000);
+  document.getElementById('time-display').textContent = elapsed + 's';
+}
+
+function finishTest() {
+  isFinished = true;
+  if (timerInterval) clearInterval(timerInterval);
+
+  const container = document.getElementById('typing-container');
+  container.classList.remove('active');
+  container.classList.add('done');
+
+  updateStats();
+  updateTimer();
+
+  // Show results
+  setTimeout(() => {
+    document.getElementById('results').style.display = 'block';
+    renderKeyboardHeatmap();
+    renderRhythmWaveform();
+    renderBigramSpeeds();
+    renderFingerDistribution();
+    renderTypePrintCard();
+    document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 300);
+}
+
+// ===== KEYBOARD HEATMAP =====
+function renderKeyboardHeatmap() {
+  const container = document.getElementById('keyboard-heatmap');
+  container.innerHTML = '';
+
+  const maxCount = Math.max(1, ...Object.values(keyCounts));
+
+  KB_ROWS.forEach(row => {
+    const rowDiv = document.createElement('div');
+    rowDiv.className = 'kb-row';
+
+    row.forEach(({k, w, label}) => {
+      const keyDiv = document.createElement('div');
+      let cls = 'key';
+      if (w === 5) cls += ' key-space';
+      else if (w === 2) cls += ' key-wider';
+      else if (w > 1) cls += ' key-wide';
+      keyDiv.className = cls;
+
+      const count = keyCounts[k] || 0;
+      const intensity = count / maxCount;
+
+      if (count > 0) {
+        const r = Math.round(108 + (239 - 108) * intensity);
+        const g = Math.round(92 + (68 - 92) * intensity);
+        const b = Math.round(231 + (68 - 231) * intensity);
+        keyDiv.style.background = `rgba(${r},${g},${b},${0.2 + intensity * 0.8})`;
+        keyDiv.style.color = '#fff';
+        keyDiv.style.borderColor = `rgba(${r},${g},${b},0.5)`;
+      }
+
+      keyDiv.innerHTML = `${label || k.toUpperCase()}${count > 0 ? `<span class="count">${count}</span>` : ''}`;
+      rowDiv.appendChild(keyDiv);
+    });
+
+    container.appendChild(rowDiv);
+  });
+}
+
+// ===== RHYTHM WAVEFORM =====
+function renderRhythmWaveform() {
+  const canvas = document.getElementById('rhythm-canvas');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+
+  canvas.width = canvas.offsetWidth * dpr;
+  canvas.height = 180 * dpr;
+  ctx.scale(dpr, dpr);
+
+  const W = canvas.offsetWidth;
+  const H = 180;
+
+  ctx.clearRect(0, 0, W, H);
+
+  if (intervals.length < 2) return;
+
+  const maxInterval = Math.min(Math.max(...intervals), 1000);
+  const points = intervals.map((v, i) => ({
+    x: (i / (intervals.length - 1)) * W,
+    y: H - (Math.min(v, 1000) / maxInterval) * (H - 40) - 20
+  }));
+
+  // Draw gradient fill
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, '#6c5ce7');
+  grad.addColorStop(0.5, '#a855f7');
+  grad.addColorStop(1, '#06b6d4');
+
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, H);
+  ctx.lineTo(points[0].x, points[0].y);
+
+  for (let i = 1; i < points.length; i++) {
+    const cx = (points[i - 1].x + points[i].x) / 2;
+    ctx.bezierCurveTo(cx, points[i - 1].y, cx, points[i].y, points[i].x, points[i].y);
+  }
+
+  ctx.lineTo(points[points.length - 1].x, H);
+  ctx.closePath();
+
+  const fillGrad = ctx.createLinearGradient(0, 0, 0, H);
+  fillGrad.addColorStop(0, 'rgba(108,92,231,0.3)');
+  fillGrad.addColorStop(1, 'rgba(108,92,231,0.02)');
+  ctx.fillStyle = fillGrad;
+  ctx.fill();
+
+  // Draw line
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) {
+    const cx = (points[i - 1].x + points[i].x) / 2;
+    ctx.bezierCurveTo(cx, points[i - 1].y, cx, points[i].y, points[i].x, points[i].y);
+  }
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // Draw dots for outliers
+  const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+  points.forEach((p, i) => {
+    if (intervals[i] > avgInterval * 1.8 || intervals[i] < avgInterval * 0.3) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = intervals[i] > avgInterval * 1.8 ? '#ef4444' : '#22c55e';
+      ctx.fill();
+    }
+  });
+
+  // Labels
+  ctx.fillStyle = '#8888a0';
+  ctx.font = '10px system-ui';
+  ctx.fillText('Fast', 4, H - 8);
+  ctx.fillText('Slow', 4, 16);
+  ctx.fillText(`avg: ${Math.round(avgInterval)}ms`, W - 70, 16);
+}
+
+// ===== BIGRAM SPEEDS =====
+function renderBigramSpeeds() {
+  const container = document.getElementById('bigram-container');
+  container.innerHTML = '';
+
+  // Calculate average speed per bigram
+  const bigramAvgs = {};
+  for (const [bigram, times] of Object.entries(bigramTimes)) {
+    if (times.length >= 2 && bigram.trim().length === 2) {
+      bigramAvgs[bigram] = times.reduce((a, b) => a + b, 0) / times.length;
+    }
+  }
+
+  const sorted = Object.entries(bigramAvgs).sort((a, b) => a[1] - b[1]);
+  if (sorted.length < 4) {
+    container.innerHTML = '<p style="color:var(--text2);font-size:.85rem">Not enough data — type more to see bigram speeds.</p>';
+    return;
+  }
+
+  const fastest = sorted.slice(0, 5);
+  const slowest = sorted.slice(-5).reverse();
+  const maxMs = Math.max(...sorted.map(s => s[1]));
+
+  // Fastest
+  const fastLabel = document.createElement('div');
+  fastLabel.className = 'bigram-section-label';
+  fastLabel.textContent = '⚡ Fastest Pairs';
+  container.appendChild(fastLabel);
+
+  fastest.forEach(([bigram, ms]) => {
+    container.appendChild(makeBigramItem(bigram, ms, maxMs, '#22c55e'));
+  });
+
+  // Slowest
+  const slowLabel = document.createElement('div');
+  slowLabel.className = 'bigram-section-label';
+  slowLabel.textContent = '🐢 Slowest Pairs';
+  container.appendChild(slowLabel);
+
+  slowest.forEach(([bigram, ms]) => {
+    container.appendChild(makeBigramItem(bigram, ms, maxMs, '#ef4444'));
+  });
+}
+
+function makeBigramItem(bigram, ms, maxMs, color) {
+  const item = document.createElement('div');
+  item.className = 'bigram-item';
+  const displayBigram = bigram.replace(/ /g, '␣');
+  item.innerHTML = `
+    <span class="bigram-keys">${escapeHtml(displayBigram)}</span>
+    <div class="bigram-bar"><div class="bigram-bar-fill" style="width:${(ms/maxMs)*100}%;background:${color}"></div></div>
+    <span class="bigram-ms">${Math.round(ms)}ms</span>
+  `;
+  return item;
+}
+
+// ===== FINGER DISTRIBUTION =====
+function renderFingerDistribution() {
+  const container = document.getElementById('finger-chart');
+  container.innerHTML = '';
+
+  const fingerCounts = new Array(10).fill(0);
+  for (const [key, count] of Object.entries(keyCounts)) {
+    const finger = FINGER_MAP[key];
+    if (finger !== undefined) fingerCounts[finger] += count;
+  }
+
+  // Merge thumbs
+  fingerCounts[4] += fingerCounts[5];
+  fingerCounts[5] = 0;
+
+  const total = fingerCounts.reduce((a, b) => a + b, 0) || 1;
+  const maxCount = Math.max(...fingerCounts);
+
+  const displayFingers = [0,1,2,3,4,6,7,8,9]; // skip R Thumb (merged)
+  const labels = ['L5','L4','L3','L2','Th','R2','R3','R4','R5'];
+
+  displayFingers.forEach((fi, idx) => {
+    const count = fingerCounts[fi];
+    const pct = ((count / total) * 100).toFixed(1);
+    const height = maxCount > 0 ? (count / maxCount) * 120 : 4;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'finger-bar-wrap';
+    wrap.innerHTML = `
+      <div class="finger-pct" style="color:${FINGER_COLORS[fi]}">${pct}%</div>
+      <div class="finger-bar" style="height:${height}px;background:${FINGER_COLORS[fi]}"></div>
+      <div class="finger-label">${labels[idx]}</div>
+    `;
+    container.appendChild(wrap);
+  });
+}
+
+// ===== TYPEPRINT CARD =====
+function renderTypePrintCard() {
+  const elapsed = startTime ? ((performance.now() - startTime) / 1000) : 0;
+  const total = correctCount + incorrectCount;
+  const acc = total > 0 ? Math.round((correctCount / total) * 100) : 100;
+  const wpm = elapsed > 0 ? Math.round((correctCount / 5) / (elapsed / 60)) : 0;
+  const avgInterval = intervals.length > 0 ? Math.round(intervals.reduce((a,b) => a+b,0) / intervals.length) : 0;
+  const consistency = intervals.length > 1 ? Math.round(100 - (standardDeviation(intervals) / (avgInterval || 1)) * 50) : 0;
+
+  document.getElementById('typeprint-summary').textContent =
+    `${wpm} WPM · ${acc}% Accuracy · ${Math.round(elapsed)}s · ${consistency}% Rhythm Consistency`;
+
+  // Mini heatmap
+  drawMiniHeatmap();
+  // Mini rhythm
+  drawMiniRhythm();
+  // Mini fingerprint
+  drawMiniFingerprint();
+}
+
+function drawMiniHeatmap() {
+  const canvas = document.getElementById('mini-heatmap');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = 280 * dpr;
+  canvas.height = 100 * dpr;
+  ctx.scale(dpr, dpr);
+
+  const maxCount = Math.max(1, ...Object.values(keyCounts));
+  const allKeys = 'qwertyuiopasdfghjklzxcvbnm '.split('');
+  const cellSize = 9;
+  const gap = 2;
+  const cols = 10;
+
+  allKeys.forEach((k, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const count = keyCounts[k] || 0;
+    const intensity = count / maxCount;
+
+    const x = 10 + col * (cellSize + gap);
+    const y = 10 + row * (cellSize + gap);
+
+    ctx.fillStyle = count > 0
+      ? `rgba(108,92,231,${0.15 + intensity * 0.85})`
+      : 'rgba(42,42,58,0.5)';
+    ctx.beginPath();
+    ctx.roundRect(x, y, cellSize, cellSize, 2);
+    ctx.fill();
+  });
+}
+
+function drawMiniRhythm() {
+  const canvas = document.getElementById('mini-rhythm');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = 280 * dpr;
+  canvas.height = 100 * dpr;
+  ctx.scale(dpr, dpr);
+
+  if (intervals.length < 2) return;
+
+  const W = 280, H = 100;
+  const maxI = Math.min(Math.max(...intervals), 800);
+
+  const grad = ctx.createLinearGradient(0, 0, W, 0);
+  grad.addColorStop(0, '#6c5ce7');
+  grad.addColorStop(1, '#06b6d4');
+
+  ctx.beginPath();
+  intervals.forEach((v, i) => {
+    const x = (i / (intervals.length - 1)) * W;
+    const y = H - (Math.min(v, 800) / maxI) * (H - 20) - 10;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+function drawMiniFingerprint() {
+  const canvas = document.getElementById('mini-fingerprint');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = 280 * dpr;
+  canvas.height = 100 * dpr;
+  ctx.scale(dpr, dpr);
+
+  const W = 280, H = 100;
+  const cx = W / 2, cy = H / 2;
+
+  // Generate unique fingerprint from typing data
+  const hash = generateHash();
+  const angles = 36;
+  const points = [];
+
+  for (let i = 0; i < angles; i++) {
+    const angle = (i / angles) * Math.PI * 2;
+    const r = 15 + hash[i % hash.length] * 0.12;
+    points.push({
+      x: cx + Math.cos(angle) * r,
+      y: cy + Math.sin(angle) * r
+    });
+  }
+
+  // Draw filled shape
+  const grad = ctx.createRadialGradient(cx, cy, 10, cx, cy, 45);
+  grad.addColorStop(0, 'rgba(108,92,231,0.4)');
+  grad.addColorStop(1, 'rgba(168,85,247,0.1)');
+
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i <= points.length; i++) {
+    const p = points[i % points.length];
+    const pp = points[(i - 1) % points.length];
+    const cpx = (pp.x + p.x) / 2;
+    const cpy = (pp.y + p.y) / 2;
+    ctx.quadraticCurveTo(pp.x, pp.y, cpx, cpy);
+  }
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(108,92,231,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Inner rings
+  for (let r = 10; r < 40; r += 10) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(108,92,231,${0.1 + (40 - r) / 200})`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+}
+
+function generateHash() {
+  // Create a unique numerical signature from typing patterns
+  const values = [];
+
+  // Use interval data
+  intervals.forEach(v => values.push(v));
+
+  // Pad with key counts
+  for (const [k, v] of Object.entries(keyCounts)) {
+    values.push(v * 10 + k.charCodeAt(0));
+  }
+
+  // Ensure we have enough values
+  while (values.length < 36) values.push(values.length * 7.3);
+
+  return values.map(v => Math.abs(v % 300));
+}
+
+function standardDeviation(arr) {
+  const n = arr.length;
+  if (n < 2) return 0;
+  const mean = arr.reduce((a, b) => a + b, 0) / n;
+  const sqDiffs = arr.map(v => (v - mean) ** 2);
+  return Math.sqrt(sqDiffs.reduce((a, b) => a + b, 0) / n);
+}
+
+// ===== DOWNLOAD =====
+document.getElementById('download-btn').addEventListener('click', () => {
+  const canvas = document.createElement('canvas');
+  const dpr = 2;
+  canvas.width = 800 * dpr;
+  canvas.height = 500 * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  // Background
+  ctx.fillStyle = '#0a0a0f';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, 800, 500, 16);
+  ctx.fill();
+
+  // Border
+  ctx.strokeStyle = '#2a2a3a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(0, 0, 800, 500, 16);
+  ctx.stroke();
+
+  // Title
+  const titleGrad = ctx.createLinearGradient(250, 0, 550, 0);
+  titleGrad.addColorStop(0, '#6c5ce7');
+  titleGrad.addColorStop(0.5, '#a855f7');
+  titleGrad.addColorStop(1, '#06b6d4');
+  ctx.fillStyle = titleGrad;
+  ctx.font = 'bold 28px system-ui';
+  ctx.textAlign = 'center';
+  ctx.fillText('TypePrint', 400, 45);
+
+  // Stats
+  const elapsed = startTime ? ((performance.now() - startTime) / 1000) : 0;
+  const total = correctCount + incorrectCount;
+  const acc = total > 0 ? Math.round((correctCount / total) * 100) : 100;
+  const wpm = elapsed > 0 ? Math.round((correctCount / 5) / (elapsed / 60)) : 0;
+
+  ctx.fillStyle = '#8888a0';
+  ctx.font = '14px system-ui';
+  ctx.fillText(`${wpm} WPM · ${acc}% Accuracy · ${Math.round(elapsed)}s`, 400, 70);
+
+  // Draw mini visualizations
+  // Copy mini canvases
+  const miniH = document.getElementById('mini-heatmap');
+  const miniR = document.getElementById('mini-rhythm');
+  const miniF = document.getElementById('mini-fingerprint');
+
+  ctx.drawImage(miniH, 20, 90, 240, 150);
+  ctx.drawImage(miniR, 280, 90, 240, 150);
+  ctx.drawImage(miniF, 540, 90, 240, 150);
+
+  // Labels
+  ctx.fillStyle = '#8888a0';
+  ctx.font = '11px system-ui';
+  ctx.fillText('Heat Pattern', 140, 255);
+  ctx.fillText('Rhythm DNA', 400, 255);
+  ctx.fillText('TypePrint ID', 660, 255);
+
+  // Keyboard heatmap (simplified)
+  const maxCount = Math.max(1, ...Object.values(keyCounts));
+  const keys = 'qwertyuiop'.split('');
+  keys.forEach((k, i) => {
+    const count = keyCounts[k] || 0;
+    const intensity = count / maxCount;
+    ctx.fillStyle = count > 0 ? `rgba(108,92,231,${0.2 + intensity * 0.8})` : 'rgba(42,42,58,0.5)';
+    ctx.beginPath();
+    ctx.roundRect(100 + i * 62, 280, 56, 36, 6);
+    ctx.fill();
+    ctx.fillStyle = count > 0 ? '#fff' : '#555';
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText(k.toUpperCase(), 128 + i * 62, 303);
+  });
+
+  // Rhythm mini (draw intervals as bars)
+  if (intervals.length > 1) {
+    const maxI = Math.min(Math.max(...intervals), 800);
+    const barW = Math.min(600 / intervals.length, 8);
+    intervals.forEach((v, i) => {
+      const h = (Math.min(v, 800) / maxI) * 100;
+      const hue = 260 + (v / maxI) * 60;
+      ctx.fillStyle = `hsla(${hue}, 70%, 60%, 0.6)`;
+      ctx.fillRect(100 + i * barW, 440 - h, Math.max(barW - 1, 1), h);
+    });
+  }
+
+  // Watermark
+  ctx.fillStyle = '#555';
+  ctx.font = '11px system-ui';
+  ctx.fillText('typeprint.vercel.app', 400, 480);
+
+  // Download
+  const link = document.createElement('a');
+  link.download = 'typeprint.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+});
+
+// ===== CONTROLS =====
+document.getElementById('restart-btn').addEventListener('click', init);
+document.getElementById('retry-btn').addEventListener('click', init);
+
+document.getElementById('theme-btn').addEventListener('click', () => {
+  document.body.style.filter = document.body.style.filter === 'invert(1) hue-rotate(180deg)' ? '' : 'invert(1) hue-rotate(180deg)';
+});
+
+// Polyfill roundRect if needed
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+    if (typeof r === 'number') r = [r,r,r,r];
+    this.moveTo(x + r[0], y);
+    this.lineTo(x + w - r[1], y);
+    this.arcTo(x + w, y, x + w, y + r[1], r[1]);
+    this.lineTo(x + w, y + h - r[2]);
+    this.arcTo(x + w, y + h, x + w - r[2], y + h, r[2]);
+    this.lineTo(x + r[3], y + h);
+    this.arcTo(x, y + h, x, y + h - r[3], r[3]);
+    this.lineTo(x, y + r[0]);
+    this.arcTo(x, y, x + r[0], y, r[0]);
+    this.closePath();
+    return this;
+  };
+}
+
+// ===== INIT =====
+init();
+document.getElementById('hidden-input').focus();
+</script>
+</body>
+</html>
